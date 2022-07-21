@@ -1,0 +1,73 @@
+#Joe endpoint pinger
+import os
+import smtplib
+from smtplib import SMTP
+import time
+
+
+class PINGER():
+    def __init__(self,text):
+        self.IPList = [("Google","8.8.8.8"),("OpenDNS","1.1.1.1")]
+        self.SENDER = ""
+        self.RECEIVER = ""
+        self.PASSWORD = str(text)
+        self.SUBJECT = ""
+        self.BODY = ""
+        self.message = ""
+        
+
+    def smtp_sender(self):
+        try:
+            server = smtplib.SMTP(host="fqdn", port=587)
+            server.starttls()
+            server.login(self.SENDER,self.PASSWORD)
+            print("Logged in....")
+            server.sendmail(self.SENDER,self.RECEIVER,self.message)
+            print("Email has been sent")
+            server.quit()
+            server.close()
+            print("Closing socket")
+            
+        except smtplib.SMTPAuthenticationError:
+            print("Unable to sign in")
+
+    def IP_tester(self):
+
+
+        print(f"The list of endpoints are {self.IPList})")
+        
+        for endpoints in self.IPList:
+            print(endpoints[1])
+            response = os.system("ping " + str(endpoints[1]))
+
+            print(response)
+           
+            if response == 0:
+                print(f"{endpoints[1]} is up")
+                
+            else:
+                self.SUBJECT = f"{endpoints[1]} is offline"
+                self.BODY = f"IP {endpoints[1]}, {endpoints[0]} is offline"
+                self.message = f"""From: {self.SENDER}
+To: {self.RECEIVER}
+Subject: {self.SUBJECT} \n
+{self.BODY}
+"""
+
+                print(self.message)
+                print(f"{endpoints[1]} is down")
+                self.smtp_sender()
+                
+def main():
+    
+    with open("file.txt", "r") as file:
+        text = file.readline()
+        
+    newObject = PINGER(text)
+    while True:
+        newObject.IP_tester()
+        time.sleep(900)
+    
+    
+if __name__ == "__main__":
+    main()
