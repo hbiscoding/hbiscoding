@@ -1,0 +1,244 @@
+#fs6
+
+import socket
+from tkinter import filedialog
+from tkinter import *
+import os
+import threading
+import sys
+
+def choose_directory():
+    
+    try:
+        return filedialog.askdirectory()
+
+    except Exception as e:
+        print(e)
+        
+def return_server_IP():
+    #return routing interface IP
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as newSock:
+        newSock.connect(("10.255.255.253",80))
+        IP = newSock.getsockname()[0]
+        return IP
+    
+def server_thread(window, newButton, newText):
+    
+    newText.delete("1.0",END)
+    newText.insert("1.0", "File received: ")
+    
+    with socket.socket() as newSock:
+        newSock.bind(IPPORT)
+        newSock.listen()
+        newButton.config(text="ACCEPTING FILES NOW", state=DISABLED)
+        print(f"now listening at {IPPORT}")
+        firstconn,addr = newSock.accept()
+        print(f"first client {firstconn} at {addr} connected")
+        firstmsg = firstconn.recv(1024)
+        print(firstmsg)
+
+        decodemsg = firstmsg.decode().split(",")
+        firstconn.close()
+        
+        print(decodemsg)
+
+        saveDir = choose_directory()
+
+                
+        totalfilesprocess = 0
+
+        for file in decodemsg:
+
+            fileconn,addr = newSock.accept()
+            print(f"client {addr} connected and sending file {file}")
+            
+            newData = fileconn.recv(1024)
+            
+            file = open(os.path.join(saveDir,file),"wb")
+            
+            while newData:
+                
+                file.write(newData)
+                newData = fileconn.recv(1024)
+                
+            fileconn.close()
+           
+            file.close()
+            
+            totalfilesprocess += 1
+                         
+            print(f"wrote file {file}")
+            newText.insert(END,"\n"+file.name)
+            
+    print(f"total file number is {len(decodemsg)}, total process is {totalfilesprocess}")
+    
+    newText.insert("1.0", "total files : "+str(totalfilesprocess)+" \n")
+            
+    
+    #newLabel1 = Label(window, text=f"Total file number is: {len(decodemsg)}, \
+#Total file received is: {totalfilesprocess}").pack()
+
+    newButton.config(text="Start Server",state=ACTIVE)
+    sys.exit()
+    
+def client_thread(getIPEntry,newButton1,newText):
+    IP = getIPEntry.get()
+    PORT = 5051
+    IPPORT = (IP,PORT)
+    
+    
+
+    
+    try:
+
+        with socket.socket() as newSock:
+
+            newSock.connect(IPPORT)
+            newText.delete("1.0",END)
+            newText.insert("1.0", "File sent: ")
+            print(f"connecting to new server at {IPPORT}")
+            newButton1.config(text="SENDING FILES NOW", state=DISABLED)
+            
+            filelist=filedialog.askopenfilenames()
+            
+            newfileliststr = b""
+
+            for index,item in enumerate(filelist):
+                
+                if index == len(filelist)-1:
+                    newfileliststr += os.path.basename(item).encode()
+                    continue
+                
+                newfileliststr += os.path.basename(item).encode() + ",".encode()
+                
+            print(newfileliststr)
+            newSock.send(newfileliststr)
+            newSock.close()
+            totalfilesprocess = 0
+            
+            for file in filelist:
+                with socket.socket() as newSock:
+                    newSock.connect(IPPORT)
+                    newFile = open(file,"rb")
+                    fileData = newFile.read(1024)
+                    while fileData:
+                                        
+                        newSock.send(fileData)
+                        fileData = newFile.read(1024)
+                
+                totalfilesprocess += 1
+                print(f"File has been sent: {file}")
+        
+                newText.insert(END,"\n"+file)
+                
+        newText.insert("1.0", "total files : "+str(totalfilesprocess)+" \n")
+            
+        newButton1.config(text="Send file to IP",state=ACTIVE)
+        #use this to end thread inside a function call  
+        sys.exit()
+    
+    except:
+        print("error connecting")
+        newText.delete("1.0",END)
+        newText.insert("1.0", "Cannot connect ")
+        
+
+    
+def serve_main_function(window, newButton,newText):
+    
+    
+    #server_thread(window)
+    threadList=[]
+    
+    finishedThread = threading.Thread(target=server_thread, args=(window, newButton, newText), daemon=True)
+    threadList.append(finishedThread.start())
+    print(finishedThread)
+    print(threadList)
+    for item in threadList:
+        print(item)
+        
+
+    #server_thread(window,newButton,newText)
+    
+    
+    
+def send_main_function(getIPEntry,newButton1,newText):
+    
+    if getIPEntry.get() == "":
+        return "no ip"
+    
+    
+#     threadList=[]
+#     
+#     finishedThread = threading.Thread(target=client_thread, args=(getIPEntry,newButton1,newText),daemon=True)
+#     threadList.append(finishedThread.start())
+#     print(finishedThread)
+#     print(threadList)
+#     for item in threadList:
+#         print(item)
+#     print(len(threadList))
+
+    client_thread(getIPEntry,newButton1,newText)
+        
+        
+
+IP = return_server_IP()
+PORT = 5051
+IPPORT = (IP,PORT)
+
+def main():
+
+    window = Tk()
+    
+    #newThread = threading.Thread(target=main_function,args=(window,),daemon=TRUE)
+    
+    getIPEntry = StringVar()
+
+    window.title("Joseph simple file server")
+    window.eval("tk::PlaceWindow . center")
+
+    newLabel = Label(window, text="-|- SERVER 1)click start btn server to start receiving -|-", font=("Arial",15), )
+    newLabel.pack()
+    
+    newLabel = Label(window, fg="RED",text=str(IP)+":"+str(PORT), font=("Arial",50), )
+    newLabel.pack()
+
+    newButton = Button(window, text = "Start Server", command=lambda: serve_main_function(window,newButton,newText))
+    newButton.pack()
+    newButtonstop = Button(window, text = "Stop Server", command=lambda: os._exit(0))
+    newButtonstop.pack()
+    
+    newLabel = Label(window, fg="black",text="|------------------------------------------------------------------------|", font=("Arial",20), )
+    newLabel.pack()
+    
+    textScrollbar = Scrollbar(window)
+
+    newText = Text(window, height=8, width=65, wrap=WORD )
+    newText.insert("1.0","WELCOME, Click on the 'start server' to receive file or 'send file to ip' to send file: ")
+    newText.pack()
+    textScrollbar.config(command=newText.yview)
+    
+    newLabel = Label(window, fg="black",text="|------------------------------------------------------------------------|", font=("Arial",20), )
+    newLabel.pack()
+
+    newLabel = Label(window, text="", font=("Arial",20), )
+    newLabel.pack()
+    
+    newLabel = Label(window, text="-|- CLIENT 1)put svr ip 2) click send file btn to send -|-", font=("Arial",15), )
+    newLabel.pack()
+   
+    newEntry = Entry(window, textvariable=getIPEntry, font=("Arial",15), width=30)
+    #default text
+    #newEntry.insert(0,"Type in server IP here")
+    newEntry.pack()
+
+    newButton1 = Button(window, text="Send file to IP", command=lambda:send_main_function(getIPEntry,newButton1,newText))
+    newButton1.pack()
+
+
+    #window.attributes("-topmost",1)
+    window.mainloop()
+
+if __name__ == "__main__":
+    main()
+
